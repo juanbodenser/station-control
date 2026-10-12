@@ -21,13 +21,14 @@ import com.jboden.fuegos.ui.copia.PantallaCopia
 import com.jboden.fuegos.ui.historico.HistoricoViewModel
 import com.jboden.fuegos.ui.historico.HistoricoViewModelFactory
 import com.jboden.fuegos.ui.historico.PantallaHistorico
-import com.jboden.fuegos.ui.produccion.PantallaProduccion
 import com.jboden.fuegos.ui.produccion.ProduccionViewModel
 import com.jboden.fuegos.ui.produccion.ProduccionViewModelFactory
 import com.jboden.fuegos.ui.recuento.FuegosViewModel
 import com.jboden.fuegos.ui.recuento.FuegosViewModelFactory
 import com.jboden.fuegos.ui.recuento.PantallaRecuento
 import com.jboden.fuegos.ui.theme.FuegosTheme
+import com.jboden.fuegos.utils.navegarA
+import com.jboden.fuegos.utils.navegarAtras
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,42 +57,36 @@ class MainActivity : ComponentActivity() {
                     composable("recuento") {
                         PantallaRecuento(
                             viewModel = recuentoViewModel,
-                            onNavigateToProduccion = { navController.navigate("produccion") },
-                            onNavigateToAjustes = { navController.navigate("ajustes") },
-                            onNavigateToHistorico = { navController.navigate("historico") },
-                            onNavigateToConsumo = { navController.navigate("consumo") },
-                            onNavigateToCopia = { navController.navigate("copia") }
-                        )
-                    }
-                    composable("produccion") {
-                        PantallaProduccion(
-                            viewModel = produccionViewModel,
-                            onBack = { navController.popBackStack() }
+                            produccionViewModel = produccionViewModel,
+                            onNavigateToAjustes = { navController.navegarA("ajustes") },
+                            onNavigateToHistorico = { navController.navegarA("historico") },
+                            onNavigateToConsumo = { navController.navegarA("consumo") },
+                            onNavigateToCopia = { navController.navegarA("copia") }
                         )
                     }
                     composable("ajustes") {
                         PantallaAjustes(
                             viewModel = ajustesViewModel,
                             produccionViewModel = produccionViewModel,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.navegarAtras() }
                         )
                     }
                     composable("historico") {
                         PantallaHistorico(
                             viewModel = historicoViewModel,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.navegarAtras() }
                         )
                     }
                     composable("consumo") {
                         PantallaConsumo(
                             viewModel = consumoViewModel,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.navegarAtras() }
                         )
                     }
                     composable("copia") {
                         PantallaCopia(
                             viewModel = copiaViewModel,
-                            onBack = { navController.popBackStack() }
+                            onBack = { navController.navegarAtras() }
                         )
                     }
                 }

@@ -4,14 +4,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
@@ -19,15 +25,20 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -35,6 +46,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -48,14 +60,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jboden.fuegos.ui.produccion.ProduccionViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -71,7 +86,7 @@ fun getFechaHoyStr(): String {
 @Composable
 fun PantallaRecuento(
     viewModel: FuegosViewModel,
-    onNavigateToProduccion: () -> Unit,
+    produccionViewModel: ProduccionViewModel,
     onNavigateToAjustes: () -> Unit,
     onNavigateToHistorico: () -> Unit,
     onNavigateToConsumo: () -> Unit,
@@ -79,13 +94,31 @@ fun PantallaRecuento(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val tareasProduccion by produccionViewModel.tareas.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var menuExpanded by remember { mutableStateOf(false) }
-    val pagerState = rememberPagerState { uiState.secciones.size }
+
+    val totalPages = uiState.secciones.size + 1
+    val pagerState = rememberPagerState { totalPages }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val haptic = LocalHapticFeedback.current
+    val clipboardManager = LocalClipboardManager.current
+
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var editableMessageText by remember { mutableStateOf("") }
+
+    LaunchedEffect(uiState.secciones.size) {
+        if (pagerState.currentPage >= totalPages) {
+            pagerState.scrollToPage(totalPages - 1)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+    }
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { message ->
@@ -94,7 +127,9 @@ fun PantallaRecuento(
         }
     }
 
-    val seccionActual = uiState.secciones.getOrNull(pagerState.currentPage)
+    val isProduccionPage = pagerState.currentPage == uiState.secciones.size
+    val seccionActual = if (!isProduccionPage) uiState.secciones.getOrNull(pagerState.currentPage) else null
+
     val camposRellenadosCount = if (seccionActual != null) {
         seccionActual.productos.count { prod ->
             val id = prod.producto.id
@@ -102,18 +137,36 @@ fun PantallaRecuento(
         }
     } else 0
 
+    val marcadasCount = tareasProduccion.count { it.marcada }
+    val produccionSubtitle = if (marcadasCount > 0) {
+        "$marcadasCount ${if (marcadasCount == 1) "marcada" else "marcadas"}"
+    } else {
+        "Nada marcado"
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Recuento", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            text = getFechaHoyStr(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    if (isProduccionPage) {
+                        Column {
+                            Text("Producción", style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                text = produccionSubtitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Column {
+                            Text("Recuento", style = MaterialTheme.typography.titleLarge)
+                            Text(
+                                text = getFechaHoyStr(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -127,13 +180,6 @@ fun PantallaRecuento(
                         expanded = menuExpanded,
                         onDismissRequest = { menuExpanded = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("Producción") },
-                            onClick = {
-                                menuExpanded = false
-                                onNavigateToProduccion()
-                            }
-                        )
                         DropdownMenuItem(
                             text = { Text("Histórico") },
                             onClick = {
@@ -167,40 +213,75 @@ fun PantallaRecuento(
             )
         },
         bottomBar = {
-            if (seccionActual != null && uiState.secciones.isNotEmpty()) {
+            if (uiState.secciones.isNotEmpty() || isProduccionPage) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                    ) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Button(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    focusManager.clearFocus()
-                                    keyboardController?.hide()
-                                    viewModel.guardarRecuento(seccionActual)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(56.dp),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                val buttonText = if (camposRellenadosCount > 0) {
-                                    "Guardar ($camposRellenadosCount)"
-                                } else {
-                                    "Guardar"
+                            if (isProduccionPage) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        editableMessageText = produccionViewModel.generarMensaje()
+                                        showBottomSheet = true
+                                    },
+                                    enabled = marcadasCount > 0,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp),
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                ) {
+                                    Text(
+                                        text = "Preparar mensaje",
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    )
                                 }
-                                Text(
-                                    text = buttonText,
-                                    style = MaterialTheme.typography.titleLarge
-                                )
+                            } else if (seccionActual != null) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        focusManager.clearFocus()
+                                        keyboardController?.hide()
+                                        viewModel.guardarRecuento(seccionActual)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp),
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                ) {
+                                    val buttonText = if (camposRellenadosCount > 0) {
+                                        "Guardar ($camposRellenadosCount)"
+                                    } else {
+                                        "Guardar"
+                                    }
+                                    Text(
+                                        text = buttonText,
+                                        style = MaterialTheme.typography.labelLarge.copy(
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -280,24 +361,116 @@ fun PantallaRecuento(
                             }
                         )
                     }
+
+                    // Pestaña Producción al final
+                    val isProdSelected = isProduccionPage
+                    Tab(
+                        selected = isProdSelected,
+                        onClick = {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(uiState.secciones.size)
+                            }
+                        },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Producción",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = if (isProdSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (isProdSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (marcadasCount > 0) {
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ) {
+                                        Text(marcadasCount.toString())
+                                    }
+                                }
+                            }
+                        }
+                    )
                 }
 
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.weight(1f)
                 ) { page ->
-                    val seccionState = uiState.secciones[page]
-                    PaginaSeccion(
-                        seccionState = seccionState,
-                        cantidadesIngresadas = viewModel.cantidadesIngresadas,
-                        entradasIngresadas = viewModel.entradasIngresadas,
-                        onCantidadChange = { prodId, cant ->
-                            viewModel.onCantidadChanged(prodId, cant)
+                    if (page < uiState.secciones.size) {
+                        val seccionState = uiState.secciones[page]
+                        PaginaSeccion(
+                            seccionState = seccionState,
+                            cantidadesIngresadas = viewModel.cantidadesIngresadas,
+                            entradasIngresadas = viewModel.entradasIngresadas,
+                            onCantidadChange = { prodId, cant ->
+                                viewModel.onCantidadChanged(prodId, cant)
+                            },
+                            onEntradaChange = { prodId, entro ->
+                                viewModel.onEntradaChanged(prodId, entro)
+                            }
+                        )
+                    } else {
+                        PaginaProduccion(viewModel = produccionViewModel)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showBottomSheet = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Mensaje preparado",
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                OutlinedTextField(
+                    value = editableMessageText,
+                    onValueChange = { editableMessageText = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TextButton(
+                        onClick = { showBottomSheet = false },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp)
+                    ) {
+                        Text("Cancelar")
+                    }
+
+                    Button(
+                        onClick = {
+                            clipboardManager.setText(AnnotatedString(editableMessageText))
+                            produccionViewModel.desmarcarTodas()
+                            showBottomSheet = false
                         },
-                        onEntradaChange = { prodId, entro ->
-                            viewModel.onEntradaChanged(prodId, entro)
-                        }
-                    )
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(56.dp),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text("Copiar texto")
+                    }
                 }
             }
         }
@@ -373,6 +546,7 @@ fun PaginaSeccion(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             itemsIndexed(
                 items = productos,
