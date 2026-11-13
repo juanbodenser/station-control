@@ -16,6 +16,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fuegos"
+rootProject.name = "station-control"
 include(":app")
  
