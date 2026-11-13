@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -53,6 +57,9 @@ class MainActivity : ComponentActivity() {
                 val consumoViewModel: ConsumoViewModel = viewModel(factory = consumoViewModelFactory)
                 val produccionViewModel: ProduccionViewModel = viewModel(factory = produccionViewModelFactory)
 
+                // Con edge-to-edge (targetSdk 37) adjustResize no tiene efecto:
+                // hay que reservar el espacio del teclado a mano en la raíz.
+                Box(modifier = Modifier.fillMaxSize().imePadding()) {
                 NavHost(navController = navController, startDestination = "recuento") {
                     composable("recuento") {
                         PantallaRecuento(
@@ -89,6 +96,7 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.navegarAtras() }
                         )
                     }
+                }
                 }
             }
         }
