@@ -22,6 +22,8 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
 
         val plantillaEncabezado = prefs.getString("plantilla_encabezado", "Producción para Fuegos:")
         val plantillaCierre = prefs.getString("plantilla_cierre", "Gracias, buenas noches.")
+        val partidaEncabezado = prefs.getString("partida_plantilla_encabezado", null)
+        val partidaCierre = prefs.getString("partida_plantilla_cierre", null)
 
         val json = JSONObject().apply {
             put("formato", "fuegos-backup")
@@ -29,6 +31,8 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
             put("fechaExportacion", System.currentTimeMillis())
             put("plantillaEncabezado", plantillaEncabezado)
             put("plantillaCierre", plantillaCierre)
+            partidaEncabezado?.let { put("partidaPlantillaEncabezado", it) }
+            partidaCierre?.let { put("partidaPlantillaCierre", it) }
 
             put("unidades", JSONArray().apply {
                 unidades.forEach { u ->
@@ -104,6 +108,7 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
                         put("texto", t.texto)
                         put("orden", t.orden)
                         put("marcada", t.marcada)
+                        put("lista", t.lista)
                     })
                 }
             })
@@ -139,6 +144,8 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
 
         val plantillaEncabezado = json.optString("plantillaEncabezado", "")
         val plantillaCierre = json.optString("plantillaCierre", "")
+        val partidaEncabezado = if (json.has("partidaPlantillaEncabezado")) json.getString("partidaPlantillaEncabezado") else null
+        val partidaCierre = if (json.has("partidaPlantillaCierre")) json.getString("partidaPlantillaCierre") else null
 
         val unidadesList = mutableListOf<Unidad>()
         for (i in 0 until unidadesJson.length()) {
@@ -220,15 +227,22 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
         }
 
         val tareasList = mutableListOf<TareaProduccion>()
+        // Las copias anteriores a la pestaña Partida no traen el campo "lista":
+        // en ese caso solo se sustituyen las tareas de Producción y se conserva Partida.
+        var copiaConListas = false
         if (tareasJson != null) {
+            for (i in 0 until tareasJson.length()) {
+                if (tareasJson.getJSONObject(i).has("lista")) copiaConListas = true
+            }
             for (i in 0 until tareasJson.length()) {
                 val obj = tareasJson.getJSONObject(i)
                 tareasList.add(
                     TareaProduccion(
-                        id = obj.getLong("id"),
+                        id = if (copiaConListas) obj.getLong("id") else 0,
                         texto = obj.getString("texto"),
                         orden = obj.getInt("orden"),
-                        marcada = obj.getBoolean("marcada")
+                        marcada = obj.getBoolean("marcada"),
+                        lista = obj.optString("lista", LISTA_PRODUCCION)
                     )
                 )
             }
@@ -243,7 +257,11 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
             db.execSQL("DELETE FROM secciones")
             db.execSQL("DELETE FROM unidades")
             if (tareasJson != null) {
-                db.execSQL("DELETE FROM tareas_produccion")
+                if (copiaConListas) {
+                    db.execSQL("DELETE FROM tareas_produccion")
+                } else {
+                    db.execSQL("DELETE FROM tareas_produccion WHERE lista = ?", arrayOf<Any>(LISTA_PRODUCCION))
+                }
             }
 
             val unidadDao = database.unidadDao()
@@ -271,6 +289,8 @@ class CopiaSeguridad(private val database: FuegosDatabase, private val context: 
         if (plantillaEncabezado.isNotBlank()) {
             prefs.edit().putString("plantilla_encabezado", plantillaEncabezado).apply()
         }
+        partidaEncabezado?.let { prefs.edit().putString("partida_plantilla_encabezado", it).apply() }
+        partidaCierre?.let { prefs.edit().putString("partida_plantilla_cierre", it).apply() }
         if (plantillaCierre.isNotBlank()) {
             prefs.edit().putString("plantilla_cierre", plantillaCierre).apply()
         }

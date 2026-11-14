@@ -25,6 +25,7 @@ import com.jboden.fuegos.ui.copia.PantallaCopia
 import com.jboden.fuegos.ui.historico.HistoricoViewModel
 import com.jboden.fuegos.ui.historico.HistoricoViewModelFactory
 import com.jboden.fuegos.ui.historico.PantallaHistorico
+import com.jboden.fuegos.ui.produccion.ListaTareas
 import com.jboden.fuegos.ui.produccion.ProduccionViewModel
 import com.jboden.fuegos.ui.produccion.ProduccionViewModelFactory
 import com.jboden.fuegos.ui.recuento.FuegosViewModel
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
         val copiaViewModelFactory = CopiaViewModelFactory(database, applicationContext)
         val consumoViewModelFactory = ConsumoViewModelFactory(database)
         val produccionViewModelFactory = ProduccionViewModelFactory(database, applicationContext)
+        val partidaViewModelFactory = ProduccionViewModelFactory(database, applicationContext, ListaTareas.PARTIDA)
 
         setContent {
             FuegosTheme {
@@ -55,7 +57,8 @@ class MainActivity : ComponentActivity() {
                 val historicoViewModel: HistoricoViewModel = viewModel(factory = historicoViewModelFactory)
                 val copiaViewModel: CopiaViewModel = viewModel(factory = copiaViewModelFactory)
                 val consumoViewModel: ConsumoViewModel = viewModel(factory = consumoViewModelFactory)
-                val produccionViewModel: ProduccionViewModel = viewModel(factory = produccionViewModelFactory)
+                val produccionViewModel: ProduccionViewModel = viewModel(key = "produccion", factory = produccionViewModelFactory)
+                val partidaViewModel: ProduccionViewModel = viewModel(key = "partida", factory = partidaViewModelFactory)
 
                 // Con edge-to-edge (targetSdk 37) adjustResize no tiene efecto:
                 // hay que reservar el espacio del teclado a mano en la raíz.
@@ -65,6 +68,7 @@ class MainActivity : ComponentActivity() {
                         PantallaRecuento(
                             viewModel = recuentoViewModel,
                             produccionViewModel = produccionViewModel,
+                            partidaViewModel = partidaViewModel,
                             onNavigateToAjustes = { navController.navegarA("ajustes") },
                             onNavigateToHistorico = { navController.navegarA("historico") },
                             onNavigateToConsumo = { navController.navegarA("consumo") },
@@ -75,6 +79,7 @@ class MainActivity : ComponentActivity() {
                         PantallaAjustes(
                             viewModel = ajustesViewModel,
                             produccionViewModel = produccionViewModel,
+                            partidaViewModel = partidaViewModel,
                             onBack = { navController.navegarAtras() }
                         )
                     }

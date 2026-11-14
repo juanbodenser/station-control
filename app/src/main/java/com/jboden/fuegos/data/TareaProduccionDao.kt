@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TareaProduccionDao {
-    @Query("SELECT * FROM tareas_produccion ORDER BY orden ASC")
-    fun getTareas(): Flow<List<TareaProduccion>>
+    @Query("SELECT * FROM tareas_produccion WHERE lista = :lista ORDER BY orden ASC")
+    fun getTareas(lista: String): Flow<List<TareaProduccion>>
 
     @Query("SELECT * FROM tareas_produccion")
     fun getAllTareas(): Flow<List<TareaProduccion>>
@@ -28,6 +28,6 @@ interface TareaProduccionDao {
     @Delete
     suspend fun delete(tarea: TareaProduccion)
 
-    @Query("UPDATE tareas_produccion SET marcada = 0")
-    suspend fun desmarcarTodas()
+    @Query("UPDATE tareas_produccion SET marcada = 0 WHERE lista = :lista")
+    suspend fun desmarcarTodas(lista: String)
 }
