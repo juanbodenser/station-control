@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 fun PantallaAjustes(
     viewModel: AjustesViewModel,
     produccionViewModel: ProduccionViewModel,
+    partidaViewModel: ProduccionViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -67,9 +68,9 @@ fun PantallaAjustes(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
-        val pagerState = rememberPagerState { 4 }
+        val pagerState = rememberPagerState { 5 }
         val coroutineScope = rememberCoroutineScope()
-        val tabs = listOf("Secciones", "Productos", "Unidades", "Producción")
+        val tabs = listOf("Secciones", "Productos", "Unidades", "Producción", "Partida")
 
         Column(
             modifier = Modifier
@@ -115,6 +116,7 @@ fun PantallaAjustes(
                     1 -> AjustesProductos(viewModel = viewModel)
                     2 -> AjustesUnidades(viewModel = viewModel)
                     3 -> AjustesProduccion(viewModel = produccionViewModel)
+                    4 -> AjustesProduccion(viewModel = partidaViewModel)
                 }
             }
         }

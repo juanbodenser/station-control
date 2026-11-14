@@ -84,6 +84,7 @@ fun getFechaHoyStr(): String {
 fun PantallaRecuento(
     viewModel: FuegosViewModel,
     produccionViewModel: ProduccionViewModel,
+    partidaViewModel: ProduccionViewModel,
     onNavigateToAjustes: () -> Unit,
     onNavigateToHistorico: () -> Unit,
     onNavigateToConsumo: () -> Unit,
@@ -92,10 +93,17 @@ fun PantallaRecuento(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val tareasProduccion by produccionViewModel.tareas.collectAsStateWithLifecycle()
+    val tareasPartida by partidaViewModel.tareas.collectAsStateWithLifecycle()
+    // Pestañas de listas de tareas que van tras las secciones de recuento
+    val listas = listOf(produccionViewModel, partidaViewModel)
+    val marcadasPorLista = listOf(
+        tareasProduccion.count { it.marcada },
+        tareasPartida.count { it.marcada }
+    )
     val snackbarHostState = remember { SnackbarHostState() }
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val totalPages = uiState.secciones.size + 1
+    val totalPages = uiState.secciones.size + listas.size
     val pagerState = rememberPagerState { totalPages }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
@@ -104,6 +112,7 @@ fun PantallaRecuento(
     val clipboardManager = LocalClipboardManager.current
 
     var showBottomSheet by remember { mutableStateOf(false) }
+    var listaMensaje by remember { mutableStateOf<ProduccionViewModel?>(null) }
     var editableMessageText by remember { mutableStateOf("") }
 
     LaunchedEffect(uiState.secciones.size) {
@@ -124,7 +133,9 @@ fun PantallaRecuento(
         }
     }
 
-    val isProduccionPage = pagerState.currentPage == uiState.secciones.size
+    val listaIndex = pagerState.currentPage - uiState.secciones.size
+    val listaActual = if (listaIndex >= 0) listas.getOrNull(listaIndex) else null
+    val isProduccionPage = listaActual != null
     val seccionActual = if (!isProduccionPage) uiState.secciones.getOrNull(pagerState.currentPage) else null
 
     val camposRellenadosCount = if (seccionActual != null) {
@@ -134,7 +145,7 @@ fun PantallaRecuento(
         }
     } else 0
 
-    val marcadasCount = tareasProduccion.count { it.marcada }
+    val marcadasCount = if (listaIndex >= 0) marcadasPorLista.getOrElse(listaIndex) { 0 } else 0
     val produccionSubtitle = if (marcadasCount > 0) {
         "$marcadasCount ${if (marcadasCount == 1) "marcada" else "marcadas"}"
     } else {
@@ -148,7 +159,7 @@ fun PantallaRecuento(
                 title = {
                     if (isProduccionPage) {
                         Column {
-                            Text("Producción", style = MaterialTheme.typography.titleLarge)
+                            Text(listaActual?.lista?.nombre ?: "", style = MaterialTheme.typography.titleLarge)
                             Text(
                                 text = produccionSubtitle,
                                 style = MaterialTheme.typography.bodySmall,
@@ -230,7 +241,8 @@ fun PantallaRecuento(
                             if (isProduccionPage) {
                                 FilledTonalButton(
                                     onClick = {
-                                        editableMessageText = produccionViewModel.generarMensaje()
+                                        listaMensaje = listaActual
+                                        editableMessageText = listaActual?.generarMensaje() ?: ""
                                         showBottomSheet = true
                                     },
                                     enabled = marcadasCount > 0,
@@ -358,37 +370,41 @@ fun PantallaRecuento(
                         )
                     }
 
-                    // Pestaña Producción al final
-                    val isProdSelected = isProduccionPage
-                    Tab(
-                        selected = isProdSelected,
-                        onClick = {
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(uiState.secciones.size)
-                            }
-                        },
-                        text = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Producción",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = if (isProdSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (isProdSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                if (marcadasCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ) {
-                                        Text(marcadasCount.toString())
+                    // Pestañas de listas de tareas (Producción, Partida) al final
+                    listas.forEachIndexed { i, listaVm ->
+                        val pageIndex = uiState.secciones.size + i
+                        val isProdSelected = pagerState.currentPage == pageIndex
+                        val marcadasLista = marcadasPorLista[i]
+                        Tab(
+                            selected = isProdSelected,
+                            onClick = {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(pageIndex)
+                                }
+                            },
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = listaVm.lista.nombre,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = if (isProdSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = if (isProdSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (marcadasLista > 0) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        ) {
+                                            Text(marcadasLista.toString())
+                                        }
                                     }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
 
                 HorizontalPager(
@@ -409,7 +425,7 @@ fun PantallaRecuento(
                             }
                         )
                     } else {
-                        PaginaProduccion(viewModel = produccionViewModel)
+                        PaginaProduccion(viewModel = listas[page - uiState.secciones.size])
                     }
                 }
             }
@@ -418,7 +434,7 @@ fun PantallaRecuento(
 
     if (showBottomSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showBottomSheet = false },
+            onDismissRequest = { showBottomSheet = false; listaMensaje = null },
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
             Column(
@@ -446,7 +462,7 @@ fun PantallaRecuento(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     TextButton(
-                        onClick = { showBottomSheet = false },
+                        onClick = { showBottomSheet = false; listaMensaje = null },
                         modifier = Modifier
                             .weight(1f)
                             .height(56.dp)
@@ -457,7 +473,8 @@ fun PantallaRecuento(
                     Button(
                         onClick = {
                             clipboardManager.setText(AnnotatedString(editableMessageText))
-                            produccionViewModel.desmarcarTodas()
+                            listaMensaje?.desmarcarTodas()
+                            listaMensaje = null
                             showBottomSheet = false
                         },
                         modifier = Modifier

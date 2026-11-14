@@ -73,7 +73,7 @@ fun PaginaProduccion(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No hay tareas de producción",
+                    text = "No hay tareas de ${viewModel.lista.nombre.lowercase()}",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

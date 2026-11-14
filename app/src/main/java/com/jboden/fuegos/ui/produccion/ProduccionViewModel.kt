@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.jboden.fuegos.data.FuegosDatabase
+import com.jboden.fuegos.data.LISTA_PARTIDA
+import com.jboden.fuegos.data.LISTA_PRODUCCION
 import com.jboden.fuegos.data.TareaProduccion
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -13,9 +15,40 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * Configuración de cada lista de tareas (Producción, Partida...): nombre visible,
+ * claves de preferencias para la plantilla del mensaje y sus valores por defecto.
+ */
+enum class ListaTareas(
+    val clave: String,
+    val nombre: String,
+    val prefEncabezado: String,
+    val prefCierre: String,
+    val encabezadoPorDefecto: String,
+    val cierrePorDefecto: String,
+) {
+    PRODUCCION(
+        clave = LISTA_PRODUCCION,
+        nombre = "Producción",
+        prefEncabezado = "plantilla_encabezado",
+        prefCierre = "plantilla_cierre",
+        encabezadoPorDefecto = "Producción para Fuegos:",
+        cierrePorDefecto = "Gracias, buenas noches.",
+    ),
+    PARTIDA(
+        clave = LISTA_PARTIDA,
+        nombre = "Partida",
+        prefEncabezado = "partida_plantilla_encabezado",
+        prefCierre = "partida_plantilla_cierre",
+        encabezadoPorDefecto = "Preparaciones partida fuegos:",
+        cierrePorDefecto = "",
+    ),
+}
+
 class ProduccionViewModel(
     private val database: FuegosDatabase,
     private val context: Context,
+    val lista: ListaTareas = ListaTareas.PRODUCCION,
 ) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("fuegos_copia_prefs", Context.MODE_PRIVATE)
@@ -23,7 +56,7 @@ class ProduccionViewModel(
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
-    val tareas: StateFlow<List<TareaProduccion>> = database.tareaProduccionDao().getTareas()
+    val tareas: StateFlow<List<TareaProduccion>> = database.tareaProduccionDao().getTareas(lista.clave)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onUserMessageShown() {
@@ -38,26 +71,26 @@ class ProduccionViewModel(
 
     fun desmarcarTodas() {
         viewModelScope.launch {
-            database.tareaProduccionDao().desmarcarTodas()
+            database.tareaProduccionDao().desmarcarTodas(lista.clave)
             _userMessage.value = "Tareas desmarcadas"
         }
     }
 
     fun getEncabezado(): String {
-        return prefs.getString("plantilla_encabezado", "Producción para Fuegos:") ?: "Producción para Fuegos:"
+        return prefs.getString(lista.prefEncabezado, lista.encabezadoPorDefecto) ?: lista.encabezadoPorDefecto
     }
 
     fun saveEncabezado(text: String) {
-        prefs.edit().putString("plantilla_encabezado", text.trim()).apply()
+        prefs.edit().putString(lista.prefEncabezado, text.trim()).apply()
         _userMessage.value = "Encabezado guardado"
     }
 
     fun getCierre(): String {
-        return prefs.getString("plantilla_cierre", "Gracias, buenas noches.") ?: "Gracias, buenas noches."
+        return prefs.getString(lista.prefCierre, lista.cierrePorDefecto) ?: lista.cierrePorDefecto
     }
 
     fun saveCierre(text: String) {
-        prefs.edit().putString("plantilla_cierre", text.trim()).apply()
+        prefs.edit().putString(lista.prefCierre, text.trim()).apply()
         _userMessage.value = "Cierre guardado"
     }
 
@@ -90,7 +123,7 @@ class ProduccionViewModel(
         }
         viewModelScope.launch {
             val nuevoOrden = (tareas.value.maxOfOrNull { it.orden } ?: 0) + 1
-            database.tareaProduccionDao().insert(TareaProduccion(texto = trimmed, orden = nuevoOrden, marcada = false))
+            database.tareaProduccionDao().insert(TareaProduccion(texto = trimmed, orden = nuevoOrden, marcada = false, lista = lista.clave))
             onResult(true)
         }
     }
@@ -146,11 +179,12 @@ class ProduccionViewModel(
 class ProduccionViewModelFactory(
     private val database: FuegosDatabase,
     private val context: Context,
+    private val lista: ListaTareas = ListaTareas.PRODUCCION,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProduccionViewModel::class.java)) {
-            return ProduccionViewModel(database, context) as T
+            return ProduccionViewModel(database, context, lista) as T
         }
         throw IllegalArgumentException("Clase ViewModel desconocida: ${modelClass.name}")
     }

@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Entrada::class,
         TareaProduccion::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -54,6 +54,15 @@ abstract class FuegosDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE tareas_produccion ADD COLUMN lista TEXT NOT NULL DEFAULT '$LISTA_PRODUCCION'"
+                )
+                insertInitialPartidaTasks(database)
+            }
+        }
+
         fun getDatabase(context: Context): FuegosDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -61,7 +70,7 @@ abstract class FuegosDatabase : RoomDatabase() {
                     FuegosDatabase::class.java,
                     "fuegos_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .addCallback(FuegosDatabaseCallback())
                     .build()
                 INSTANCE = instance
@@ -118,6 +127,7 @@ abstract class FuegosDatabase : RoomDatabase() {
             )
 
             insertInitialTasks(db)
+            insertInitialPartidaTasks(db)
         }
     }
 }
@@ -137,5 +147,49 @@ private fun insertInitialTasks(db: SupportSQLiteDatabase) {
     )
     tareas.forEachIndexed { index, texto ->
         db.execSQL("INSERT INTO tareas_produccion (texto, orden, marcada) VALUES ('$texto', ${index + 1}, 0)")
+    }
+}
+
+private fun insertInitialPartidaTasks(db: SupportSQLiteDatabase) {
+    val tareas = listOf(
+        "Adelantar cebolla blanca en juliana",
+        "Adelantar verduras para codorniz",
+        "Adelantar verduras para sofrito",
+        "Arroz Acquerello",
+        "Bivalvos",
+        "Boletus",
+        "Caldo de meloso",
+        "Cebolla pochada ají mirasol",
+        "Cortar cebolleta china",
+        "Cortar chilli rojo",
+        "Cortar jamón",
+        "Cortar piparra",
+        "Cortar tomate cherry",
+        "Cortar verduras para menestra",
+        "Guiso de codorniz",
+        "Hacer puré para pulpo",
+        "Levantar fabada",
+        "Limpiar cigalas",
+        "Limpiar espinacas",
+        "Limpiar langostinos",
+        "Linguini",
+        "Marcar flores",
+        "Mayonesa de pulpo",
+        "Menestra",
+        "Montar verdinas",
+        "Panadera de cigala",
+        "Perejil rizado",
+        "Pulpo",
+        "Rellenar chipirones",
+        "Salsa de cigala",
+        "Sémola",
+        "Sofrito",
+        "Sofrito meloso"
+    )
+    tareas.forEachIndexed { index, texto ->
+        db.execSQL(
+            "INSERT INTO tareas_produccion (texto, orden, marcada, lista) VALUES (?, ?, 0, ?)",
+            arrayOf<Any>(texto, index + 1, LISTA_PARTIDA)
+        )
     }
 }

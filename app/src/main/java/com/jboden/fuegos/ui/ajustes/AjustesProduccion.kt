@@ -110,7 +110,7 @@ fun AjustesProduccion(
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    Text("Tareas de producción", style = MaterialTheme.typography.titleLarge)
+                    Text("Tareas de ${viewModel.lista.nombre.lowercase()}", style = MaterialTheme.typography.titleLarge)
                 }
             }
 
